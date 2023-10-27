@@ -2,6 +2,8 @@
 
 use super::TaskContext;
 
+use crate::config::MAX_SYSCALL_NUM;
+
 /// The task control block (TCB) of a task.
 #[derive(Copy, Clone)]
 pub struct TaskControlBlock {
@@ -9,6 +11,14 @@ pub struct TaskControlBlock {
     pub task_status: TaskStatus,
     /// The task context
     pub task_cx: TaskContext,
+
+    ///  **** The task first time
+    pub task_first_time: usize,
+    /// **** is the fisrt run
+    pub task_first_run: bool,
+    
+    /// *** the task syscall time
+    pub task_syscall_time: [u32; MAX_SYSCALL_NUM],
 }
 
 /// The status of a task
