@@ -138,6 +138,10 @@ impl PhysAddr {
     pub fn page_offset(&self) -> usize {
         self.0 & (PAGE_SIZE - 1)
     }
+    /// Combine the offset and ppn
+    pub fn combine(ppn: PhysPageNum, offset: usize) -> PhysAddr{
+        PhysAddr::from((ppn.0 << 12) | (offset))
+    }
     /// Check if the physical address is aligned by page size
     pub fn aligned(&self) -> bool {
         self.page_offset() == 0

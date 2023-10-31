@@ -1,6 +1,6 @@
 //! Implementation of [`PageTableEntry`] and [`PageTable`].
 
-use super::{frame_alloc, FrameTracker, PhysPageNum, StepByOne, VirtAddr, VirtPageNum};
+use super::{frame_alloc, FrameTracker, PhysPageNum, StepByOne, VirtAddr, VirtPageNum, PhysAddr};
 use alloc::vec;
 use alloc::vec::Vec;
 use bitflags::*;
@@ -170,4 +170,17 @@ pub fn translated_byte_buffer(token: usize, ptr: *const u8, len: usize) -> Vec<&
         start = end_va.into();
     }
     v
+}
+/// convert virtual address into physical address
+pub fn virt_to_phys(virt: VirtAddr, satp: usize) -> Option<PhysAddr> {
+    let offset = virt.page_offset();
+    let vpn = virt.floor();
+    let ppn = PageTable::from_token(satp).translate(vpn)
+        .map(|entry| entry.ppn());
+    if let Some(ppn) = ppn {
+        Some(PhysAddr::combine(ppn, offset))
+    }
+    else {
+        None
+    }
 }

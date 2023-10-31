@@ -14,6 +14,10 @@ mod switch;
 #[allow(clippy::module_inception)]
 mod task;
 
+use crate::config::MAX_SYSCALL_NUM;
+use crate::mm::{VirtAddr, MapPermission, VirtPageNum, PageTableEntry};
+use crate::timer::get_time_ms;
+
 use crate::loader::{get_app_data, get_num_app};
 use crate::sync::UPSafeCell;
 use crate::trap::TrapContext;
@@ -79,6 +83,10 @@ impl TaskManager {
         let mut inner = self.inner.exclusive_access();
         let next_task = &mut inner.tasks[0];
         next_task.task_status = TaskStatus::Running;
+        if next_task.task_first_run == false {
+            next_task.task_first_run = true;
+            next_task.task_first_time = get_time_ms();
+        }
         let next_task_cx_ptr = &next_task.task_cx as *const TaskContext;
         drop(inner);
         let mut _unused = TaskContext::zero_init();
@@ -140,6 +148,10 @@ impl TaskManager {
             let mut inner = self.inner.exclusive_access();
             let current = inner.current_task;
             inner.tasks[next].task_status = TaskStatus::Running;
+            if  inner.tasks[next].task_first_run == false {
+                inner.tasks[next].task_first_run = true;
+                inner.tasks[next].task_first_time = get_time_ms();
+            }
             inner.current_task = next;
             let current_task_cx_ptr = &mut inner.tasks[current].task_cx as *mut TaskContext;
             let next_task_cx_ptr = &inner.tasks[next].task_cx as *const TaskContext;
@@ -152,6 +164,46 @@ impl TaskManager {
         } else {
             panic!("All applications completed!");
         }
+    }
+
+    /// record the syscall time
+    fn record_syscall_time(&self, syscall_id: usize) {
+        let mut inner = self.inner.exclusive_access();
+        let current = inner.current_task;
+        inner.tasks[current].task_syscall_time[syscall_id] += 1;
+    }
+
+    /// get first run time
+    fn get_first_run_time(&self) -> usize {
+        let inner = self.inner.exclusive_access();
+        let current = inner.current_task;
+        inner.tasks[current].task_first_time
+    }
+
+    /// get the array of task_syscall_time
+    fn get_task_syscall_time(&self) -> [u32; MAX_SYSCALL_NUM] {
+        let inner = self.inner.exclusive_access();
+        let current = inner.current_task;
+        inner.tasks[current].task_syscall_time.clone()
+    } 
+
+    /// alloc the memory
+    fn alloc_memory_to_memset(&self, start_va: VirtAddr, end_va: VirtAddr, permission:MapPermission) {
+        let mut inner = self.inner.exclusive_access();
+        let current = inner.current_task;
+        inner.tasks[current].memory_set.insert_framed_area(start_va, end_va, permission);
+    }
+
+    fn translate_vpn_ppn(&self, vpn: VirtPageNum) -> Option<PageTableEntry>{
+        let inner = self.inner.exclusive_access();
+        let current = inner.current_task;
+        inner.tasks[current].memory_set.translate(vpn)
+    }
+
+    fn unmap_framed_area(&self, start_vpn: VirtPageNum, end_vpn: VirtPageNum) -> isize {
+        let mut inner = self.inner.exclusive_access();
+        let current = inner.current_task;
+        inner.tasks[current].memory_set.unmap_framed_area(start_vpn, end_vpn)
     }
 }
 
@@ -201,4 +253,34 @@ pub fn current_trap_cx() -> &'static mut TrapContext {
 /// Change the current 'Running' task's program break
 pub fn change_program_brk(size: i32) -> Option<usize> {
     TASK_MANAGER.change_current_program_brk(size)
+}
+
+/// get the first run time
+pub fn get_first_run_time() -> usize {
+    TASK_MANAGER.get_first_run_time()
+}
+
+/// Increment the time of the syscall time
+pub fn record_syscall_time(syscall_id: usize) {
+    TASK_MANAGER.record_syscall_time(syscall_id);
+}
+
+/// get the task syscall time
+pub fn get_task_syscall_time() -> [u32; MAX_SYSCALL_NUM] {
+    TASK_MANAGER.get_task_syscall_time()
+}
+
+/// alloc the memory to task
+pub fn alloc_memory_to_memset(start_va: VirtAddr, end_va: VirtAddr, permission:MapPermission) {
+    TASK_MANAGER.alloc_memory_to_memset(start_va, end_va, permission);
+}
+
+/// translate vpn to ppn
+pub fn translate_vpn_ppn(vpn: VirtPageNum) -> Option<PageTableEntry>{
+    TASK_MANAGER.translate_vpn_ppn(vpn)
+}
+
+/// unmap the memory
+pub fn unmap_framed_area(start_vpn: VirtPageNum, end_vpn: VirtPageNum) -> isize {
+    TASK_MANAGER.unmap_framed_area(start_vpn, end_vpn)
 }
