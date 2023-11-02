@@ -8,9 +8,14 @@ use super::__switch;
 use super::{fetch_task, TaskStatus};
 use super::{TaskContext, TaskControlBlock};
 use crate::sync::UPSafeCell;
+
 use crate::trap::TrapContext;
 use alloc::sync::Arc;
 use lazy_static::*;
+
+use crate::config::MAX_SYSCALL_NUM;
+use crate::mm::{VirtAddr, MapPermission, VirtPageNum, PageTableEntry};
+use crate::timer::get_time_ms;
 
 /// Processor management structure
 pub struct Processor {
@@ -44,6 +49,58 @@ impl Processor {
     pub fn current(&self) -> Option<Arc<TaskControlBlock>> {
         self.current.as_ref().map(Arc::clone)
     }
+
+    /// record the syscall time
+    fn record_syscall_time(&self, syscall_id: usize) {
+        let mut inner = self.current.as_ref().unwrap().inner_exclusive_access();
+        inner.task_syscall_time[syscall_id] += 1;
+        // let mut inner = self.inner.exclusive_access();
+        // let current = inner.current_task;
+        // inner.tasks[current].task_syscall_time[syscall_id] += 1;
+    }
+
+    /// get first run time
+    fn get_first_run_time(&self) -> usize {
+        let inner = self.current.as_ref().unwrap().inner_exclusive_access();
+        inner.task_first_time
+        // let inner = self.inner.exclusive_access();
+        // let current = inner.current_task;
+        // inner.tasks[current].task_first_time
+    }
+
+    /// get the array of task_syscall_time
+    fn get_task_syscall_time(&self) -> [usize; MAX_SYSCALL_NUM] {
+        let inner = self.current.as_ref().unwrap().inner_exclusive_access();
+        inner.task_syscall_time.clone()
+        // let inner = self.inner.exclusive_access();
+        // let current = inner.current_task;
+        // inner.tasks[current].task_syscall_time.clone()
+    } 
+
+    /// alloc the memory
+    fn alloc_memory_to_memset(&self, start_va: VirtAddr, end_va: VirtAddr, permission:MapPermission) {
+        let mut inner = self.current.as_ref().unwrap().inner_exclusive_access();
+        inner.memory_set.insert_framed_area(start_va, end_va, permission)
+        // let mut inner = self.inner.exclusive_access();
+        // let current = inner.current_task;
+        // inner.tasks[current].memory_set.insert_framed_area(start_va, end_va, permission);
+    }
+
+    fn translate_vpn_ppn(&self, vpn: VirtPageNum) -> Option<PageTableEntry>{
+        let inner = self.current.as_ref().unwrap().inner_exclusive_access();
+        inner.memory_set.translate(vpn)
+        // let inner = self.inner.exclusive_access();
+        // let current = inner.current_task;
+        // inner.tasks[current].memory_set.translate(vpn)
+    }
+
+    fn unmap_framed_area(&self, start_vpn: VirtPageNum, end_vpn: VirtPageNum) -> isize {
+        let mut inner = self.current.as_ref().unwrap().inner_exclusive_access();
+        inner.memory_set.unmap_framed_area(start_vpn, end_vpn)
+        // let mut inner = self.inner.exclusive_access();
+        // let current = inner.current_task;
+        // inner.tasks[current].memory_set.unmap_framed_area(start_vpn, end_vpn)
+    }
 }
 
 lazy_static! {
@@ -61,6 +118,10 @@ pub fn run_tasks() {
             let mut task_inner = task.inner_exclusive_access();
             let next_task_cx_ptr = &task_inner.task_cx as *const TaskContext;
             task_inner.task_status = TaskStatus::Running;
+            if task_inner.task_first_run == false {
+                task_inner.task_first_run = true;
+                task_inner.task_first_time = get_time_ms();
+            }
             // release coming task_inner manually
             drop(task_inner);
             // release coming task TCB manually
@@ -108,4 +169,34 @@ pub fn schedule(switched_task_cx_ptr: *mut TaskContext) {
     unsafe {
         __switch(switched_task_cx_ptr, idle_task_cx_ptr);
     }
+}
+
+/// get the first run time
+pub fn get_first_run_time() -> usize {
+    PROCESSOR.exclusive_access().get_first_run_time()
+}
+
+/// Increment the time of the syscall time
+pub fn record_syscall_time(syscall_id: usize) {
+    PROCESSOR.exclusive_access().record_syscall_time(syscall_id);
+}
+
+/// get the task syscall time
+pub fn get_task_syscall_time() -> [usize; MAX_SYSCALL_NUM] {
+    PROCESSOR.exclusive_access().get_task_syscall_time()
+}
+
+/// alloc the memory to task
+pub fn alloc_memory_to_memset(start_va: VirtAddr, end_va: VirtAddr, permission:MapPermission) {
+    PROCESSOR.exclusive_access().alloc_memory_to_memset(start_va, end_va, permission);
+}
+
+/// translate vpn to ppn
+pub fn translate_vpn_ppn(vpn: VirtPageNum) -> Option<PageTableEntry>{
+    PROCESSOR.exclusive_access().translate_vpn_ppn(vpn)
+}
+
+/// unmap the memory
+pub fn unmap_framed_area(start_vpn: VirtPageNum, end_vpn: VirtPageNum) -> isize {
+    PROCESSOR.exclusive_access().unmap_framed_area(start_vpn, end_vpn)
 }

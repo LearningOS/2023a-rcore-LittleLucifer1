@@ -213,3 +213,16 @@ pub fn translated_refmut<T>(token: usize, ptr: *mut T) -> &'static mut T {
         .unwrap()
         .get_mut()
 }
+/// convert virtual address into physical address
+pub fn virt_to_phys(virt: VirtAddr, satp: usize) -> Option<PhysAddr> {
+    let offset = virt.page_offset();
+    let vpn = virt.floor();
+    let ppn = PageTable::from_token(satp).translate(vpn)
+        .map(|entry| entry.ppn());
+    if let Some(ppn) = ppn {
+        Some(PhysAddr::combine(ppn, offset))
+    }
+    else {
+        None
+    }
+}

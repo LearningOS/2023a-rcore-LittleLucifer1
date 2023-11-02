@@ -27,6 +27,7 @@ use lazy_static::*;
 pub use manager::{fetch_task, TaskManager};
 use switch::__switch;
 pub use task::{TaskControlBlock, TaskStatus};
+pub use processor::{record_syscall_time, get_first_run_time, get_task_syscall_time, alloc_memory_to_memset, unmap_framed_area, translate_vpn_ppn};
 
 pub use context::TaskContext;
 pub use id::{kstack_alloc, pid_alloc, KernelStack, PidHandle};

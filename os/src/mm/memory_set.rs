@@ -72,6 +72,25 @@ impl MemorySet {
             self.areas.remove(idx);
         }
     }
+    /// unmap the memory
+    pub fn unmap_framed_area(
+        &mut self,
+        start_vpn: VirtPageNum,
+        end_vpn: VirtPageNum,
+    ) -> isize {
+        // find the MapArea
+        for map_area in &mut self.areas {
+            if start_vpn >= map_area.vpn_range.get_start() && end_vpn <= map_area.vpn_range.get_end() {
+            // then use unmap function
+                for vpn in start_vpn.0..end_vpn.0 {
+                    map_area.unmap_one(&mut self.page_table, VirtPageNum::from(vpn))
+                };
+                return 0;
+            }
+        }
+        return -1;
+    }
+
     /// Add a new MapArea into this MemorySet.
     /// Assuming that there are no conflicts in the virtual address
     /// space.
