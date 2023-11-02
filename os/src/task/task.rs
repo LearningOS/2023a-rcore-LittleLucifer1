@@ -281,7 +281,7 @@ impl TaskControlBlock {
                     program_brk: user_sp,
                     task_first_time: 0,
                     task_first_run: false,
-                    task_syscall_time: [0;MAX_SYSCALL_NUM],
+                    task_syscall_time: [0; MAX_SYSCALL_NUM],
                     task_priority: 16,
                     task_stride: 0,
                 })
