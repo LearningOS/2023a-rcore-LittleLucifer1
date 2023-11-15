@@ -35,7 +35,8 @@
 
 解决完三个系统调用之后，成功的得到了预期的结果。
 
-![image-20231115112135616](/home/user/snap/typora/86/.config/Typora/typora-user-images/image-20231115112135616.png)
+![image-20231115112135616](/home/user/2023a-rcore-LittleLucifer1/reports/image-20231115112135616.png
+)
 
 #### 问答作业
 
