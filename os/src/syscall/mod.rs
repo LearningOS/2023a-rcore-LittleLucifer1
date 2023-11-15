@@ -12,6 +12,8 @@
 
 /// dup syscall
 const SYSCALL_DUP: usize = 24;
+/// io control syscall
+const SYSCALL_IOCTL: usize = 29;
 /// unlinkat syscall
 const SYSCALL_UNLINKAT: usize = 35;
 /// linkat syscall
@@ -26,10 +28,16 @@ const SYSCALL_PIPE: usize = 59;
 const SYSCALL_READ: usize = 63;
 /// write syscall
 const SYSCALL_WRITE: usize = 64;
+/// writev syscall
+const SYSCALL_WRITEV: usize = 66;
 /// fstat syscall
 const SYSCALL_FSTAT: usize = 80;
+/// set_tid_address syscall
+const SYSCALL_SET_TID_ADDRESS: usize = 96;
 /// exit syscall
 const SYSCALL_EXIT: usize = 93;
+/// exit group syscall
+const SYSCALL_EXIT_GROUP: usize = 94;
 /// yield syscall
 const SYSCALL_YIELD: usize = 124;
 /// kill syscall
@@ -104,6 +112,10 @@ pub fn syscall(syscall_id: usize, args: [usize; 4]) -> isize {
         SYSCALL_SBRK => sys_sbrk(args[0] as i32),
         SYSCALL_SPAWN => sys_spawn(args[0] as *const u8),
         SYSCALL_SET_PRIORITY => sys_set_priority(args[0] as isize),
+        SYSCALL_SET_TID_ADDRESS => sys_getpid(),
+        SYSCALL_IOCTL => 0,
+        SYSCALL_WRITEV => sys_writev(args[0], args[1] as *mut Iovec, args[2]),
+        SYSCALL_EXIT_GROUP => sys_exit(args[0] as i32),
         _ => panic!("Unsupported syscall_id: {}", syscall_id),
     }
 }

@@ -1,8 +1,13 @@
 //! File and filesystem-related syscalls
 use crate::fs::{make_pipe, open_file, OpenFlags, Stat};
-use crate::mm::{translated_byte_buffer, translated_refmut, translated_str, UserBuffer};
+use crate::mm::{translated_byte_buffer, translated_refmut, translated_str, UserBuffer, translated_ref};
 use crate::task::{current_task, current_user_token};
 use alloc::sync::Arc;
+
+pub struct Iovec {
+    iov_base: *const u8,
+    iov_len: usize,
+}
 
 pub fn sys_write(fd: usize, buf: *const u8, len: usize) -> isize {
     trace!("kernel:pid[{}] sys_write", current_task().unwrap().pid.0);
@@ -122,4 +127,37 @@ pub fn sys_linkat(_old_name: *const u8, _new_name: *const u8) -> isize {
 pub fn sys_unlinkat(_name: *const u8) -> isize {
     trace!("kernel:pid[{}] sys_unlinkat NOT IMPLEMENTED", current_task().unwrap().pid.0);
     -1
+}
+
+pub fn sys_writev(fd: usize, mut iov: *const Iovec, iovcnt: usize) -> isize {
+    trace!("kernel:pid[{}] sys_writev", current_task().unwrap().pid.0);
+    let token = current_user_token();
+    let task = current_task().unwrap();
+    let inner = task.inner_exclusive_access();
+    if fd >= inner.fd_table.len() {
+        return -1;
+    }
+    if let Some(file) = &inner.fd_table[fd] {
+        if !file.writable() {
+            return -1;
+        }
+        let file = file.clone();
+        drop(inner);
+        let mut total_size = 0;
+        for _ in 0..iovcnt {
+            let ptr_iov = translated_ref(token, iov);
+            let ptr_base:*const u8 = ptr_iov.iov_base;
+            let ptr_len: usize = ptr_iov.iov_len;
+            file.write(UserBuffer::new(translated_byte_buffer(token, ptr_base, ptr_len)));
+            total_size += ptr_len;
+            unsafe{
+                iov = iov.add(1);
+            }
+            // file.write(UserBuffer::new(translated_byte_buffer(token, buf, len))) as isize
+        }
+        total_size as isize
+    }
+    else {
+        -1
+    }
 }

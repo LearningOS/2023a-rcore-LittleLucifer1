@@ -11,7 +11,6 @@ int main(int argc, char *argv[]) {
         write(1, error, 15);
         return 1;
     }
-
     int len = 0;
     while(argv[0][len] != 0) {
         len++;

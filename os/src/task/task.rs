@@ -4,9 +4,10 @@ use super::{kstack_alloc, pid_alloc, KernelStack, PidHandle, SignalActions, Sign
 use crate::{
     config::TRAP_CONTEXT_BASE,
     fs::{File, Stdin, Stdout},
-    mm::{translated_refmut, MemorySet, PhysPageNum, VirtAddr, KERNEL_SPACE},
+    mm::{ MemorySet, PhysPageNum, VirtAddr, KERNEL_SPACE},
     sync::UPSafeCell,
     trap::{trap_handler, TrapContext},
+    loaders::ElfLoader,
 };
 use alloc::{
     string::String,
@@ -206,6 +207,7 @@ impl TaskControlBlock {
         // // make the user_sp aligned to 8B for k210 platform
         // user_sp -= user_sp % core::mem::size_of::<usize>();
 
+        /*
         let mut argv_addr: Vec<usize> = Vec::new();
         
         for i in 0..args.len() {
@@ -235,7 +237,13 @@ impl TaskControlBlock {
         *argv[args.len()] = 0;
         user_sp -= core::mem::size_of::<usize>();
         *translated_refmut(memory_set.token(), user_sp as *mut usize) = args.len();
+        */
 
+        let args_len = args.len();
+        if let Ok(elf_loader) = ElfLoader::new(elf_data) {
+            user_sp = elf_loader.init_stack(memory_set.token(), user_sp, args);
+        }
+        let argv_base = user_sp + 8;
 
         // **** access current TCB exclusively
         let mut inner = self.inner_exclusive_access();
@@ -251,7 +259,7 @@ impl TaskControlBlock {
             self.kernel_stack.get_top(),
             trap_handler as usize,
         );
-        trap_cx.x[10] = args.len();
+        trap_cx.x[10] = args_len;
         trap_cx.x[11] = argv_base;
         *inner.get_trap_cx() = trap_cx;
         // **** release current PCB
